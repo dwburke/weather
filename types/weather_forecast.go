@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"time"
 	
 	"github.com/dwburke/weather/db"
@@ -70,6 +71,7 @@ func (w *WeatherForecast) Save() error {
 }
 
 // SaveForecastToDB saves a complete forecast response to the database
+// It checks for existing records and only saves new ones or updates existing ones
 func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64) error {
 	gdbh, err := db.GetDB().DB()
 	if err != nil {
@@ -80,8 +82,9 @@ func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64) error {
 	gdbh.AutoMigrate(&WeatherForecast{})
 
 	forecastDate := time.Now()
+	var savedCount, updatedCount int
 	
-	// Save each forecast period
+	// Process each forecast period
 	for _, period := range forecast.Properties.Periods {
 		startTime, err := time.Parse(time.RFC3339, period.StartTime)
 		if err != nil {
@@ -92,6 +95,12 @@ func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64) error {
 		if err != nil {
 			return err
 		}
+		
+		// Check if a record already exists for this location, period number, and start time
+		// We use start_time as the unique identifier since period numbers can be reused
+		var existingForecast WeatherForecast
+		result := gdbh.Where("latitude = ? AND longitude = ? AND period_number = ? AND start_time = ?", 
+			lat, lon, period.Number, startTime).First(&existingForecast)
 		
 		weatherForecast := WeatherForecast{
 			Latitude:         lat,
@@ -112,11 +121,24 @@ func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64) error {
 			ForecastDate:     forecastDate,
 		}
 		
-		if err := weatherForecast.Create(); err != nil {
-			return err
+		if result.Error != nil {
+			// Record doesn't exist, create new one
+			if err := weatherForecast.Create(); err != nil {
+				return err
+			}
+			savedCount++
+		} else {
+			// Record exists, update it with new forecast data
+			weatherForecast.ID = existingForecast.ID
+			weatherForecast.CreatedAt = existingForecast.CreatedAt // Preserve original creation time
+			if err := weatherForecast.Save(); err != nil {
+				return err
+			}
+			updatedCount++
 		}
 	}
 	
+	fmt.Printf("📊 Database summary: %d new records saved, %d existing records updated\n", savedCount, updatedCount)
 	return nil
 }
 

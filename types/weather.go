@@ -117,6 +117,62 @@ func (w *WeatherClient) GetForecastByCoordinates(lat, lon float64) (*ForecastRes
 	return &forecast, nil
 }
 
+// GetHourlyForecastByCoordinates gets hourly weather forecast for given latitude and longitude
+// This can provide up to 156 hours (6.5 days) of hourly forecast data
+func (w *WeatherClient) GetHourlyForecastByCoordinates(lat, lon float64) (*ForecastResponse, error) {
+	// First, get the grid information for the coordinates
+	pointsURL := fmt.Sprintf("%s/points/%.4f,%.4f", w.BaseURL, lat, lon)
+	
+	req, err := http.NewRequest("GET", pointsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	
+	req.Header.Set("User-Agent", "weather-app/1.0 (your-email@example.com)")
+	
+	resp, err := w.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get points data: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("NWS API error: %s - %s", resp.Status, string(body))
+	}
+	
+	var pointsResp PointsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pointsResp); err != nil {
+		return nil, fmt.Errorf("failed to decode points response: %w", err)
+	}
+	
+	// Use the hourly forecast URL instead of the regular forecast URL
+	forecastReq, err := http.NewRequest("GET", pointsResp.Properties.ForecastHourly, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create forecast request: %w", err)
+	}
+	
+	forecastReq.Header.Set("User-Agent", "weather-app/1.0 (your-email@example.com)")
+	
+	forecastResp, err := w.HTTPClient.Do(forecastReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get forecast data: %w", err)
+	}
+	defer forecastResp.Body.Close()
+	
+	if forecastResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(forecastResp.Body)
+		return nil, fmt.Errorf("forecast API error: %s - %s", forecastResp.Status, string(body))
+	}
+	
+	var forecast ForecastResponse
+	if err := json.NewDecoder(forecastResp.Body).Decode(&forecast); err != nil {
+		return nil, fmt.Errorf("failed to decode forecast response: %w", err)
+	}
+	
+	return &forecast, nil
+}
+
 // FormatForecast returns a formatted string representation of the forecast
 func (f *ForecastResponse) FormatForecast(periods int) string {
 	if periods <= 0 || periods > len(f.Properties.Periods) {
