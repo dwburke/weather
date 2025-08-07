@@ -13,6 +13,7 @@ var (
 	historyPeriods int
 	historyLat     float64
 	historyLon     float64
+	historyHourly  bool
 )
 
 func init() {
@@ -22,11 +23,13 @@ func init() {
 	history.Flags().Float64VarP(&historyLat, "lat", "a", 0.0, "Latitude for weather history")
 	history.Flags().Float64VarP(&historyLon, "lon", "o", 0.0, "Longitude for weather history")
 	history.Flags().IntVarP(&historyPeriods, "periods", "p", 7, "Number of historical forecast periods to show")
+	history.Flags().BoolVarP(&historyHourly, "hourly", "H", false, "Get hourly historical forecast instead of daily periods")
 	
 	// Bind flags to viper for configuration file support
 	viper.BindPFlag("history.latitude", history.Flags().Lookup("lat"))
 	viper.BindPFlag("history.longitude", history.Flags().Lookup("lon"))
 	viper.BindPFlag("history.periods", history.Flags().Lookup("periods"))
+	viper.BindPFlag("history.hourly", history.Flags().Lookup("hourly"))
 }
 
 var history = &cobra.Command{
@@ -38,6 +41,7 @@ var history = &cobra.Command{
 		lat := viper.GetFloat64("history.latitude")
 		lon := viper.GetFloat64("history.longitude")
 		periods := viper.GetInt("history.periods")
+		hourly := viper.GetBool("history.hourly")
 		
 		// Fallback to forecast coordinates if history coordinates not set
 		if lat == 0.0 && lon == 0.0 {
@@ -46,7 +50,11 @@ var history = &cobra.Command{
 		}
 		
 		if periods == 0 {
-			periods = 7 // default
+			if hourly {
+				periods = 24 // default to 24 hours for hourly history
+			} else {
+				periods = 7 // default to 7 periods for daily history
+			}
 		}
 		
 		// Check if coordinates are provided
@@ -62,24 +70,29 @@ var history = &cobra.Command{
 			return fmt.Errorf("longitude must be between -180 and 180 degrees")
 		}
 		
+		forecastType := "daily"
+		if hourly {
+			forecastType = "hourly"
+		}
+		
 		fmt.Printf("Getting historical weather forecast for coordinates: %.4f, %.4f\n", lat, lon)
-		fmt.Printf("Showing %d historical forecast periods\n\n", periods)
+		fmt.Printf("Showing %d historical %s forecast periods\n\n", periods, forecastType)
 		
 		// Get historical forecast data from database
-		forecasts, err := types.GetLatestForecast(lat, lon, periods)
+		forecasts, err := types.GetLatestForecast(lat, lon, periods, hourly)
 		if err != nil {
 			return fmt.Errorf("failed to get historical forecast: %w", err)
 		}
 		
 		if len(forecasts) == 0 {
-			fmt.Printf("No historical forecast data found for coordinates %.4f, %.4f\n", lat, lon)
+			fmt.Printf("No historical %s forecast data found for coordinates %.4f, %.4f\n", forecastType, lat, lon)
 			fmt.Printf("Use 'weather forecast --save' to save forecast data to the database first.\n")
 			return nil
 		}
 		
 		// Display the historical forecast
-		fmt.Printf("Historical Weather Forecast (saved: %s):\n", forecasts[0].ForecastDate.Format("2006-01-02 15:04:05"))
-		fmt.Printf("================================================\n\n")
+		fmt.Printf("Historical Weather Forecast (%s, saved: %s):\n", forecastType, forecasts[0].ForecastDate.Format("2006-01-02 15:04:05"))
+		fmt.Printf("=========================================================\n\n")
 		
 		for _, forecast := range forecasts {
 			fmt.Printf("📅 %s\n", forecast.Name)

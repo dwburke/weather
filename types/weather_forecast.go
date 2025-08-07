@@ -36,6 +36,7 @@ type WeatherForecast struct {
 	
 	// Metadata
 	ForecastDate     time.Time `json:"forecast_date" gorm:"column:forecast_date;index"` // When this forecast was retrieved
+	IsHourly         bool      `json:"is_hourly" gorm:"column:is_hourly;index"`         // True for hourly forecasts, false for daily
 }
 
 func (WeatherForecast) TableName() string {
@@ -72,7 +73,7 @@ func (w *WeatherForecast) Save() error {
 
 // SaveForecastToDB saves a complete forecast response to the database
 // It checks for existing records and only saves new ones or updates existing ones
-func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64) error {
+func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64, isHourly bool) error {
 	gdbh, err := db.GetDB().DB()
 	if err != nil {
 		return err
@@ -96,11 +97,11 @@ func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64) error {
 			return err
 		}
 		
-		// Check if a record already exists for this location, period number, and start time
-		// We use start_time as the unique identifier since period numbers can be reused
+		// Check if a record already exists for this location, period number, start time, and forecast type
+		// We use start_time and is_hourly as unique identifiers since period numbers can be reused
 		var existingForecast WeatherForecast
-		result := gdbh.Where("latitude = ? AND longitude = ? AND period_number = ? AND start_time = ?", 
-			lat, lon, period.Number, startTime).First(&existingForecast)
+		result := gdbh.Where("latitude = ? AND longitude = ? AND period_number = ? AND start_time = ? AND is_hourly = ?", 
+			lat, lon, period.Number, startTime, isHourly).First(&existingForecast)
 		
 		weatherForecast := WeatherForecast{
 			Latitude:         lat,
@@ -119,6 +120,7 @@ func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64) error {
 			ShortForecast:    period.ShortForecast,
 			DetailedForecast: period.DetailedForecast,
 			ForecastDate:     forecastDate,
+			IsHourly:         isHourly,
 		}
 		
 		if result.Error != nil {
@@ -142,8 +144,8 @@ func SaveForecastToDB(forecast *ForecastResponse, lat, lon float64) error {
 	return nil
 }
 
-// GetLatestForecast retrieves the most recent forecast for given coordinates
-func GetLatestForecast(lat, lon float64, limit int) ([]WeatherForecast, error) {
+// GetLatestForecast retrieves the most recent forecast for given coordinates and type
+func GetLatestForecast(lat, lon float64, limit int, isHourly bool) ([]WeatherForecast, error) {
 	gdbh, err := db.GetDB().DB()
 	if err != nil {
 		return nil, err
@@ -151,17 +153,17 @@ func GetLatestForecast(lat, lon float64, limit int) ([]WeatherForecast, error) {
 
 	var forecasts []WeatherForecast
 	
-	// Get the most recent forecast date for these coordinates
+	// Get the most recent forecast date for these coordinates and forecast type
 	var latestDate time.Time
 	if err := gdbh.Model(&WeatherForecast{}).
-		Where("latitude = ? AND longitude = ?", lat, lon).
+		Where("latitude = ? AND longitude = ? AND is_hourly = ?", lat, lon, isHourly).
 		Select("MAX(forecast_date)").
 		Row().Scan(&latestDate); err != nil {
 		return nil, err
 	}
 	
-	// Get all periods from that forecast date
-	query := gdbh.Where("latitude = ? AND longitude = ? AND forecast_date = ?", lat, lon, latestDate).
+	// Get all periods from that forecast date and type
+	query := gdbh.Where("latitude = ? AND longitude = ? AND forecast_date = ? AND is_hourly = ?", lat, lon, latestDate, isHourly).
 		Order("period_number ASC")
 	
 	if limit > 0 {

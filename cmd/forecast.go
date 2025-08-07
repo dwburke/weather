@@ -108,7 +108,7 @@ Use --hourly flag to get hourly forecasts (up to 156 hours / 6.5 days).`,
 		// Save to database if requested
 		if save {
 			fmt.Printf("Saving forecast data to database...\n")
-			if err := types.SaveForecastToDB(forecast, lat, lon); err != nil {
+			if err := types.SaveForecastToDB(forecast, lat, lon, hourly); err != nil {
 				return fmt.Errorf("failed to save forecast to database: %w", err)
 			}
 			fmt.Printf("✅ Forecast data saved successfully!\n\n")
