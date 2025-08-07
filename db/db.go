@@ -14,6 +14,8 @@ type MyDb struct {
 	conn *gorm.DB
 }
 
+var globalDb *MyDb
+
 func init() {
 	viper.SetDefault("db.maxidleconnections", 2)
 	viper.SetDefault("db.maxopenconnections", 12)
@@ -28,6 +30,13 @@ func init() {
 func NewDB() *MyDb {
 	db := &MyDb{}
 	return db
+}
+
+func GetDB() *MyDb {
+	if globalDb == nil {
+		globalDb = NewDB()
+	}
+	return globalDb
 }
 
 // get gorm db handle for default context
