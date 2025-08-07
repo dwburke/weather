@@ -22,6 +22,7 @@ A command-line weather application that fetches forecast data from the National 
 ## Usage
 
 ### Get Current Forecast
+
 ```bash
 # Daily forecast
 ./weather forecast --lat 39.7391 --lon -104.9847
@@ -34,6 +35,7 @@ A command-line weather application that fetches forecast data from the National 
 ```
 
 ### View Historical Data
+
 ```bash
 # Daily historical forecasts
 ./weather history --lat 39.7391 --lon -104.9847
@@ -171,6 +173,7 @@ forecast:
 ## Database Schema
 
 The application uses a `weather_forecasts` table with the following structure:
+
 - Location coordinates (latitude, longitude)
 - Forecast metadata (date, period number, forecast type)
 - Weather data (temperature, wind, conditions, etc.)
