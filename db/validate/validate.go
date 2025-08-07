@@ -1,9 +1,24 @@
 package validate
 
 import (
+	"sync"
+
 	"github.com/go-playground/validator"
 	"github.com/jinzhu/gorm"
 )
+
+var (
+	validatorInstance *validator.Validate
+	validatorOnce     sync.Once
+)
+
+// getValidator returns a cached validator instance
+func getValidator() *validator.Validate {
+	validatorOnce.Do(func() {
+		validatorInstance = validator.New()
+	})
+	return validatorInstance
+}
 
 func validate(scope *gorm.Scope) {
 	if _, ok := scope.Get("gorm:update_column"); !ok {
@@ -20,8 +35,7 @@ func validate(scope *gorm.Scope) {
 		if scope.Value != nil {
 			resource := scope.IndirectValue().Interface()
 
-			validateInstance := validator.New()
-			err := validateInstance.Struct(resource)
+			err := getValidator().Struct(resource)
 
 			if err != nil {
 				if verr, ok := err.(validator.ValidationErrors); ok && verr != nil {

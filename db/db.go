@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
@@ -11,10 +12,15 @@ import (
 )
 
 type MyDb struct {
-	conn *gorm.DB
+	conn     *gorm.DB
+	connOnce sync.Once
+	connErr  error
 }
 
-var globalDb *MyDb
+var (
+	globalDb *MyDb
+	dbOnce   sync.Once
+)
 
 func init() {
 	viper.SetDefault("db.maxidleconnections", 2)
@@ -33,9 +39,9 @@ func NewDB() *MyDb {
 }
 
 func GetDB() *MyDb {
-	if globalDb == nil {
+	dbOnce.Do(func() {
 		globalDb = NewDB()
-	}
+	})
 	return globalDb
 }
 
@@ -45,32 +51,35 @@ func (db *MyDb) DB() (*gorm.DB, error) {
 }
 
 func (db *MyDb) dbh() (*gorm.DB, error) {
-	if db.conn != nil {
-		return db.conn, nil
+	db.connOnce.Do(func() {
+		connStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8&parseTime=True&loc=Local&timeout=%ds",
+			viper.GetString("db.user"),
+			viper.GetString("db.pass"),
+			viper.GetString("db.host"),
+			viper.GetInt("db.port"),
+			viper.GetString("db.name"),
+			viper.GetInt("db.connect_timeout"),
+		)
+
+		conn, err := gorm.Open("mysql", connStr)
+		if err != nil {
+			db.connErr = err
+			return
+		}
+
+		conn = conn.Set("gorm:auto_preload", true)
+
+		conn.DB().SetMaxIdleConns(viper.GetInt("db.maxidleconnections"))
+		conn.DB().SetMaxOpenConns(viper.GetInt("db.maxopenconnections"))
+
+		validate.RegisterCallbacks(conn)
+
+		db.conn = conn
+	})
+
+	if db.connErr != nil {
+		return nil, db.connErr
 	}
-
-	connStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8&parseTime=True&loc=Local&timeout=%ds",
-		viper.GetString("db.user"),
-		viper.GetString("db.pass"),
-		viper.GetString("db.host"),
-		viper.GetInt("db.port"),
-		viper.GetString("db.name"),
-		viper.GetInt("db.connect_timeout"),
-	)
-
-	conn, err := gorm.Open("mysql", connStr)
-	if err != nil {
-		return nil, err
-	}
-
-	conn = conn.Set("gorm:auto_preload", true)
-
-	conn.DB().SetMaxIdleConns(viper.GetInt("db.maxidleconnections"))
-	conn.DB().SetMaxOpenConns(viper.GetInt("db.maxopenconnections"))
-
-	validate.RegisterCallbacks(conn)
-
-	db.conn = conn
 
 	return db.conn, nil
 }
