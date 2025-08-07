@@ -33,7 +33,8 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		viper.AddConfigPath(home)
+		viper.AddConfigPath(".")  // Search config in the working directory
+		viper.AddConfigPath(home) // Search config in home directory
 		viper.SetConfigName(".weather")
 	}
 
@@ -41,5 +42,7 @@ func initConfig() {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			panic(err)
 		}
+	} else {
+		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
 }
