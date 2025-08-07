@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"github.com/spf13/viper"
 
 	"github.com/dwburke/weather/db/validate"
@@ -17,9 +17,8 @@ type MyDb struct {
 func init() {
 	viper.SetDefault("db.maxidleconnections", 2)
 	viper.SetDefault("db.maxopenconnections", 12)
-	viper.SetDefault("db.sslmode", "disable")
 	viper.SetDefault("db.connect_timeout", 90)
-	viper.SetDefault("db.port", 5432)
+	viper.SetDefault("db.port", 3306)
 	viper.SetDefault("db.user", "")
 	viper.SetDefault("db.name", "")
 	viper.SetDefault("db.pass", "")
@@ -41,17 +40,16 @@ func (db *MyDb) dbh() (*gorm.DB, error) {
 		return db.conn, nil
 	}
 
-	connStr := fmt.Sprintf("host=%s port=%d user=%s dbname=%s password=%s sslmode=%s connect_timeout=%d",
+	connStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8&parseTime=True&loc=Local&timeout=%ds",
+		viper.GetString("db.user"),
+		viper.GetString("db.pass"),
 		viper.GetString("db.host"),
 		viper.GetInt("db.port"),
-		viper.GetString("db.user"),
 		viper.GetString("db.name"),
-		viper.GetString("db.pass"),
-		viper.GetString("db.sslmode"),
 		viper.GetInt("db.connect_timeout"),
 	)
 
-	conn, err := gorm.Open("postgres", connStr)
+	conn, err := gorm.Open("mysql", connStr)
 	if err != nil {
 		return nil, err
 	}

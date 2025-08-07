@@ -20,10 +20,15 @@ func validate(scope *gorm.Scope) {
 		if scope.Value != nil {
 			resource := scope.IndirectValue().Interface()
 
-			err := validate.Struct(resource)
+			validateInstance := validator.New()
+			err := validateInstance.Struct(resource)
 
-			if verr := err.(validator.ValidationErrors); verr != nil {
-				scope.DB().AddError(verr)
+			if err != nil {
+				if verr, ok := err.(validator.ValidationErrors); ok && verr != nil {
+					scope.DB().AddError(verr)
+				} else {
+					scope.DB().AddError(err)
+				}
 			}
 		}
 
