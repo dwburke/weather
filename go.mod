@@ -5,6 +5,8 @@ go 1.24.5
 require (
 	github.com/go-playground/validator v9.31.0+incompatible
 	github.com/jinzhu/gorm v1.9.16
+	github.com/mitchellh/go-homedir v1.1.0
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 )
 
@@ -15,6 +17,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
